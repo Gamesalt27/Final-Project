@@ -1,4 +1,5 @@
-from scapy.layers.all import ETHER, IP, UDP
+from scapy.layers.inet import IP, UDP, TCP
+from scapy.layers.http import Raw
 import typing
 import logging
 import socket
