@@ -35,22 +35,20 @@ def send_to_node(address: tuple, packet: Botnet_Packet, MAC="000000000000"):  # 
 
 
 def contact_IPv6server(server: socket.socket, address: tuple, MAC="000000000000"):
-    succeeded = UDP_send(server, address, MAC.encode())
+    succeeded = TCP_send(server, MAC.encode())
     if succeeded is None: return
-    response = UDP_recieve(server)
+    response = TCP_recieve(server)
     if response is not str: return response
-    if len(response) != 8:
-        logging.warning(f"response with wrong data {response} from {address}")
-        return 2
     dest_IP, dest_port = response.split('$')  # TODO: check for incorrect response
     dest_port = int(dest_port)
     return (dest_IP, dest_port)
 
 
-def server_listener(server: socket.socket):
+def server_listener(server: socket.socket, MAC="000000000000"):
     set_keepalive(server)
     server.settimeout(300)
     server.connect()
+    succeeded = TCP_send(server, MAC.encode())
     while True:
         msg = TCP_recieve(server)
         if msg == 0:
