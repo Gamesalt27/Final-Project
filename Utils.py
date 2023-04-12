@@ -15,12 +15,14 @@ def UDP_send(destination: socket.socket, address: tuple, msg: bytes):
     return 1
 
 
-def UDP_recieve(source: socket.socket, address: tuple):           # TODO: clear socket buffer after read
+def UDP_recieve(source: socket.socket, address=("", 0)):           # TODO: clear socket buffer after read
     try:
         msg, addr = source.recvfrom(1024)
     except socket.error as e:
         logging.debug(f"source {address} unavailable")
         return 0
+    if address == ("", 0):
+        return (decrypt(msg), addr)
     if addr != address:
         logging.warning(f"received from wrong address: expected {address}, got {addr}")
         return 1
@@ -95,4 +97,8 @@ def clear_read_buffer(soc: socket.socket):
     except:
         pass
     soc.settimeout(SOCKET_TIMEOUT)
+
+
+def check_msg(msg: str, type: int):
+    return True
 

