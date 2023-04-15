@@ -6,7 +6,8 @@ MAX_SEND_THREADS_COUNT = 5
 logging.basicConfig(level=logging.DEBUG)
 SOCKET_TIMEOUT = 200
 
-def UDP_send(destination: socket.socket, address: tuple, msg: bytes):
+def UDP_send(destination: socket.socket, address: tuple, msg: str):
+    msg = encrypt(msg)
     try:
         destination.sendto(msg, address)
     except socket.error as e:
@@ -57,16 +58,27 @@ def decrypt(msg: bytes):
     return msg
 
 
-def holepunch(packet):
+def encrypt(msg: str):
+    try:
+        msg = msg.decode()
+    except ValueError:
+        logging.warning(f"failed to decode bytes: {msg}")
+        return 2
+    return msg
+
+
+def holepunch(soc: socket.socket, address: tuple):
     for i in range(0, 9):
-        response = sr1(packet)
-        if response is None: continue
-        logging.debug(f"sent msg to ({packet.dst}, {packet.dport}) from ({packet.src}, {packet.sport})")
-        if response.load.decode() == "hello there": break
+        succeeded = UDP_send(soc, address, "hello there")
+        logging.debug(f"sent msg to ({address[0]}, {address[1]}) from ({soc.getsockname[0]}, {soc.getsockname[1]})")
+        if succeeded is None:
+            continue
+        msg = UDP_recieve(soc, address)
+        if msg == "hello there": break
     else:
-        logging.info(f"unable to holepunch with ({packet.IP.dst}, {packet.UDP.dport})")
+        logging.info(f"unable to holepunch with ({address[0]}, {address[1]})")
         return
-    return 1
+    return soc
 
 
 def set_keepalive(sock: socket.socket, after_idle_sec=60, interval_sec=60, max_fails=10, timeout=5):

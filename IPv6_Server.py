@@ -17,20 +17,20 @@ def main():
     server.bind(('::1', 21212))
     holepunch_socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     holepunch_socket.bind(('::1', 12121))
-    receive_clients(server)
+    receive_clients(server, holepunch_socket)
 
 
 def receive_clients(server: socket.socket, holepunch_socket: socket.socket):
-    server.listen()
-    logging.info(f"server is listening on {server.getsockname()}")
-    holepunch_connections = threading.Thread(target=holepunch_listener, args=(holepunch_socket))
+    holepunch_connections = threading.Thread(target=holepunch_listener, args=((holepunch_socket, )))
     holepunch_connections.start()
+    logging.info(f"server is listening on {server.getsockname()}")
     while True:
+        server.listen()
         client, adderess = server.accept()
         logging.info(f"new client connected {adderess}")
         msg = TCP_recieve(client)                      # TODO: parse msg (contains only MAC right now)
         notifications.update({msg: (False, "")})
-        connections.append(threading.Thread(target=handle_client, args=(client, msg)))
+        connections.append(threading.Thread(target=handle_client, args=((client, msg))))
         connections[-1].start()                          # TODO: add computer to main list
 
 
