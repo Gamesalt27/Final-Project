@@ -27,38 +27,45 @@ def receive_clients(server: socket.socket, holepunch_socket: socket.socket):
     while True:
         server.listen()
         client, adderess = server.accept()
-        logging.info(f"new client connected {adderess}")
+        logging.info(f"new client connected {adderess}")    # TODO: set socket timeout and deal with the error
         msg = TCP_recieve(client)                      # TODO: parse msg (contains only MAC right now)
+        logging.debug(f"client {client.getpeername()} sent {msg}")
         notifications.update({msg: (False, "")})
         connections.append(threading.Thread(target=handle_client, args=((client, msg))))
         connections[-1].start()                          # TODO: add computer to main list
 
 
 def handle_client(client: socket.socket, MAC="000000000000"):
-    set_keepalive(client)
-    logging.info(f"listening to client {client.getpeername()} on {client.getsockname()}")
+    #set_keepalive(client)
+    logging.info(f"listening to client {client.getpeername()[:2]} on {client.getsockname()[:2]}")
+    client.settimeout(SOCKET_TIMEOUT)
     while True:
         msg = TCP_recieve(client)
-        if not check_msg:
-            client.close()
-            return
-        logging.info(f"received msg {msg} from {client.getpeername()}")
-        set_notify(msg, True)
-        succeeded = TCP_send(client, f"Succeeded")
+        if check_msg(msg):
+            logging.debug(f"TCP received {msg} from {client.getpeername()[:2]}")
+            set_notify(msg, True, MAC)
+            succeeded = TCP_send(client, f"Succeeded")
         notified, src_MAC = is_notified(MAC)
+        logging.debug(f"is {MAC} notified: {notified}")
         if notified:
+            logging.debug(f"{MAC} got notified by {src_MAC}")
             notify_client(client, src_MAC, MAC)
 
 
 def holepunch_listener(holepunch_socket: socket.socket):
     while True:
         msg, address1 = UDP_recieve(holepunch_socket)             # msg is {source MAC}${destination MAC}
+        logging.debug(f"UDP received {msg} from {address1}")
         addresses = msg.split("$")                  
         if addresses in holepunch_buddies:
             start_time = time.time()
-            while time.time() - start_time < 10.0:
+            while time.time() - start_time < 5.0:
                 time.sleep(0.1)
-                msg, address2 = UDP_recieve(holepunch_socket)
+                msg = UDP_recieve(holepunch_socket)
+                if msg is int:
+                    continue
+                msg, address2 = msg
+                logging.debug(f"received {msg} from {address2}")
                 if msg.split("$") != addresses:
                     continue
                 send_credentials(holepunch_socket, address1, address2)
@@ -70,21 +77,21 @@ def send_credentials(holepunch_socket: socket.socket, src_address, dst_address):
                 
 
 def notify_client(client: socket.socket, src_MAC: str, dst_MAC: str):
-    succeeded = TCP_send(client, dst_MAC)
+    succeeded = TCP_send(client, src_MAC)
     holepunch_buddies.append((src_MAC, dst_MAC))
 
 
 def set_notify(src_MAC: str, notification: bool, dst_MAC: str):
     with lock:
         notifications[src_MAC] = (notification, dst_MAC)
+        logging.debug(f"notifications dict got updated {notifications}")
 
 
 def is_notified(MAC: str):
     with lock:
-        if notifications[MAC][0]:
-            notifications[MAC] = (False, "")
-            return notifications[MAC]
-        return False
+        output = notifications[MAC]
+        notifications[MAC] = (False, "")
+        return output
 
     
 

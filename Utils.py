@@ -4,7 +4,7 @@ from scapy.all import *
 
 MAX_SEND_THREADS_COUNT = 5
 logging.basicConfig(level=logging.DEBUG)
-SOCKET_TIMEOUT = 200
+SOCKET_TIMEOUT = 1
 
 def UDP_send(destination: socket.socket, address: tuple, msg: str):
     msg = encrypt(msg)
@@ -20,7 +20,7 @@ def UDP_recieve(source: socket.socket, address=("", 0)):           # TODO: clear
     try:
         msg, addr = source.recvfrom(1024)
     except socket.error as e:
-        logging.debug(f"source {address} unavailable")
+        #logging.debug(f"source {address} unavailable")
         return 0
     if address == ("", 0):
         return (decrypt(msg), addr)
@@ -34,15 +34,16 @@ def TCP_recieve(source: socket.socket):           # TODO: clear socket buffer af
     try:
         msg = source.recv(1024)
     except socket.error as e:
-        logging.debug(f"source {source.getpeername()} unavailable")
+        #logging.debug(f"source {source.getpeername()} unavailable")
         return 0
     clear_read_buffer(source)
     return decrypt(msg)
 
 
 def TCP_send(destination: socket.socket, msg: str):
+    msg = encrypt(msg)
     try:
-        destination.sendall(msg.encode())
+        destination.sendall(msg)
     except socket.error as e:
         logging.exception(f"can't send query to destination: {destination.getpeername()}")
         return 
@@ -60,9 +61,9 @@ def decrypt(msg: bytes):
 
 def encrypt(msg: str):
     try:
-        msg = msg.decode()
+        msg = msg.encode()
     except ValueError:
-        logging.warning(f"failed to decode bytes: {msg}")
+        logging.warning(f"failed to encode bytes: {msg}")
         return 2
     return msg
 
@@ -70,7 +71,6 @@ def encrypt(msg: str):
 def holepunch(soc: socket.socket, address: tuple):
     for i in range(0, 9):
         succeeded = UDP_send(soc, address, "hello there")
-        logging.debug(f"sent msg to ({address[0]}, {address[1]}) from ({soc.getsockname[0]}, {soc.getsockname[1]})")
         if succeeded is None:
             continue
         msg = UDP_recieve(soc, address)
@@ -111,6 +111,6 @@ def clear_read_buffer(soc: socket.socket):
     soc.settimeout(SOCKET_TIMEOUT)
 
 
-def check_msg(msg: str, type: int):
-    return True
+def check_msg(msg: str, type=0):
+    return isinstance(msg, str)
 
