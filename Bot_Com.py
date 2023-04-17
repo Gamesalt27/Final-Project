@@ -12,7 +12,6 @@ import sys
 
 SERVER_IP = "::1"
 SERVER_TCP_PORT = 21212
-SERVER_UDP_PORT = 12121
 DEST_MAC = "107B444CE6B2"
 TEMP_MACs = ["000000000001", "000000000002", "000000000003"]
 receive_MAC = Queue()           # (MAC, holepunch_port)
@@ -38,13 +37,17 @@ def com_loop():                                 # TODO: add check for botnet ttl
     send_thread = threading.Thread(target=send_to_node, args=(SERVER_IP, MAC))
     send_thread.start()
     if send_msg:                                                                                            # for testing
-        send_MAC.put((sys.argv[3], "Meow"))
+        ttl = 5
+        load = f"{ttl}$meow"
+        send_MAC.put((sys.argv[3], load))
     while True:
         time.sleep(0.01)
         if receive_data.empty():
             continue
         load = receive_data.get(block=False)
         data = proccess_msg(load)
+        if type(data) == int:
+            continue
         dst_MAC = random.choice(TEMP_MACs)
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
@@ -126,7 +129,11 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str):
 
 
 def proccess_msg(msg: str):              # TODO: intilize
-    return msg
+    ttl, load = msg.split("$")
+    if int(ttl) <= 0:
+        return 1
+    ttl = int(ttl) - 1
+    return f"{ttl}${load}"
         
 
 if __name__ == "__main__":
