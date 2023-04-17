@@ -24,7 +24,7 @@ def UDP_recieve(source: socket.socket, address=("", 0)):           # TODO: clear
         return 0
     if address == ("", 0):
         return (decrypt(msg), addr)
-    if addr != address:
+    if addr[:2] != address:
         logging.warning(f"received from wrong address: expected {address}, got {addr}")
         return 1
     return decrypt(msg)
