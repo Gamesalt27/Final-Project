@@ -1,0 +1,4 @@
+{"type": 1, "MAC": "100000000000", "IP": "::1", "port": 21212}
+{"type": 2, "MAC": "000000000002", "server": "100000000000", "country": null, "ret_flag": 0}
+{"type": 2, "MAC": "000000000003", "server": "100000000000", "country": null, "ret_flag": 0}
+{"type": 1, "MAC": "200000000000", "IP": "::1", "port": 12121}

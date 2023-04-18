@@ -13,7 +13,7 @@ lock = threading.Lock()
 
 def main():
     server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    server.bind(('::1', 21212))
+    server.bind(('::1', int(sys.argv[1])))
     receive_clients(server)
 
 
@@ -44,6 +44,10 @@ def handle_client(client: socket.socket, MAC="000000000000"):
             succeeded = TCP_send(client, str(holepunch_socket.getsockname()[1]))
             holepunch_server = threading.Thread(target=holepunch_listener, args=((holepunch_socket, (MAC, msg))))
             holepunch_server.start()
+        else:
+            notifications.pop(MAC)
+            client.close()
+            return
         notified, src_MAC, holepunch_port = is_notified(MAC)
         if notified:
             logging.debug(f"{MAC} got notified by {src_MAC}")

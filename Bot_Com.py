@@ -5,17 +5,14 @@ from queue import Queue
 import time
 import random
 import sys
+from database import database
 
-SERVER_IP = "::1"
-SERVER_TCP_PORT = 21212
-DEST_MAC = "107B444CE6B2"
-TEMP_MACs = ["000000000001", "000000000002", "000000000003"]
+
 receive_MAC = Queue()           # (MAC, holepunch_port)
 receive_data = Queue()          # load
 send_MAC = Queue()              # (MAC, load)
 send_data = Queue()             # (MAC, load, holepunch_port)
-send_threads = Queue(MAX_SEND_THREADS_COUNT)
-
+db = database(sys.argv[1])
 
 
 def main():         # for testing only
@@ -23,20 +20,21 @@ def main():         # for testing only
    
        
 def com_loop():                                 # TODO: add check for botnet ttl
-    MAC = sys.argv[1]
-    TEMP_MACs.remove(MAC)
-    send_msg = bool(int(sys.argv[2]))
-    server = threading.Thread(target=server_listener, args=((socket.socket(socket.AF_INET6, socket.SOCK_STREAM), (SERVER_IP, SERVER_TCP_PORT), MAC)))
+    MAC = sys.argv[2]
+    send_msg = bool(int(sys.argv[3]))
+    server_MAC, server_address = choose_server(1)
+    server = threading.Thread(target=server_listener, args=((socket.socket(socket.AF_INET6, socket.SOCK_STREAM), server_address, MAC, server_MAC)))
     server.start()
-    receive_thread = threading.Thread(target=receive_from_node, args=(SERVER_IP, MAC))
+    receive_thread = threading.Thread(target=receive_from_node, args=(server_address[0], MAC))
     receive_thread.start()
-    send_thread = threading.Thread(target=send_to_node, args=(SERVER_IP, MAC))
+    send_thread = threading.Thread(target=send_to_node, args=(server_address[0], MAC))
     send_thread.start()
     if send_msg:                                                                                            # for testing
         ttl = 5
-        endpoint = sys.argv[4]
+        endpoint = sys.argv[5]
         load = f"{ttl}${endpoint}$meow"
-        send_MAC.put((sys.argv[3], load))
+        send_MAC.put((sys.argv[4], load))
+        logging.debug(f"added {load}, {sys.argv[4]} to send_MAC queue")
     while True:
         time.sleep(0.01)
         if receive_data.empty():
@@ -48,6 +46,11 @@ def com_loop():                                 # TODO: add check for botnet ttl
             continue
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
+        s_MAC = db.retrive_client(MAC)[1]
+        if s_MAC != server_MAC:
+            server_MAC, server_address = db.retrive_server(MAC)
+            server = threading.Thread(target=server_listener, args=((socket.socket(socket.AF_INET6, socket.SOCK_STREAM), server_address, MAC, server_MAC)))
+            server.start()
 
 
 def send_to_node(server_IP: str, src_MAC: str):
@@ -96,9 +99,10 @@ def receive_from_node(server_IP: str, dst_MAC: str):
             msg = UDP_recieve(client, (IP, port))
             if check_msg(msg):
                 receive_data.put(msg) 
+                db.set_ret(src_MAC)
 
 
-def server_listener(server: socket.socket, server_address: tuple, MAC: str):
+def server_listener(server: socket.socket, server_address: tuple, MAC: str, server_MAC: str):
     try:
         server.connect(server_address)
         logging.info(f"connected to {server.getpeername()[:2]}, from {server.getsockname()[:2]}")
@@ -106,37 +110,70 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str):
     except socket.error as e:
         logging.debug(f"server {server_address} unavaliable")
         return
-    server.settimeout(SOCKET_TIMEOUT)
+    server.settimeout(2)
     while True:
+        logging.debug("entered loop")
         time.sleep(0.01)
         msg = TCP_recieve(server)
         if check_msg(msg):
             src_MAC, holepunch_port = msg.split("$")
+            if db.entry_exists(MAC): db.add_client_entry(MAC, server_MAC, None)
             receive_MAC.put((src_MAC, int(holepunch_port)))
             logging.debug(f"TCP received {msg} from {server.getpeername()[:2]}")
-        if send_MAC.empty(): continue
+        if send_MAC.empty():
+            logging.debug(f"send_MAC is empty {send_MAC}")
+            continue
         MAC, data = send_MAC.get(block=False)
         logging.debug(f"retrived {MAC}, {data} from send MAC Queue")
+        s_MAC = db.retrive_client(MAC)[1]
+        if s_MAC != server_MAC:
+            logging.info(f"switching from server {server_MAC} to server {s_MAC}")
+            succeeded = TCP_send(server, "shutting down connection")
+            send_MAC.put(MAC, data)
+            server.close()
+            return
         succeeded = TCP_send(server, MAC)
         msg = TCP_recieve(server)                       # msg - holepunch port TODO: deal with race condition with server sending wrong data
         if check_msg(msg):
             logging.debug(f"TCP received {msg} from {server.getpeername()[:2]}")
-            send_data.put((MAC, data, int(msg)  ))
+            send_data.put((MAC, data, int(msg)))
             logging.debug(f"put {MAC}, {data} in send data Queue")
 
 
-def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load
+def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load, flag$load
     if msg.find("$") == -1:
         return (1, "")
     msg = msg.split("$")
-    ttl, endpoint, load = msg
-    if int(ttl) <= 0:
-        return (load, endpoint)
-    ttl = int(ttl) - 1
-    next_MAC = random.choice(TEMP_MACs)
-    return (f"{ttl}${endpoint}${load}", next_MAC)
+    if len(msg) == 3:
+        ttl, endpoint, load = msg
+        if int(ttl) <= 0:
+            return (load, endpoint)
+        ttl = int(ttl) - 1
+        payload = f"{ttl}${endpoint}${load}"
+    elif len(msg) == 2:
+        flag, load = msg
+        payload = f"{flag}${load}"
+    next_MAC = choose_next_node(bool(int(flag)))
+    return (payload, next_MAC)
     
-        
+
+def choose_next_node(is_ret=False):
+    if is_ret:
+        MAC = db.next_ret()
+        db.reset_ret()
+        return MAC
+    MACs = db.retrive_MACs(2)           
+    MAC = random.choice(MACs)
+    return db.retrive_client(MAC)[0]       # return MAC and server
+ 
+
+def choose_server(type=0):            # TODO: implement different states
+    if type == 1:
+        return db.retrive_server("100000000000")
+    MACs = db.retrive_MACs(1)           
+    MAC = random.choice(MACs)
+    return db.retrive_server(MAC)       # return MAC and address
+
 
 if __name__ == "__main__":
     com_loop()

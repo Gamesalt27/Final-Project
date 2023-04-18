@@ -1,1 +1,1 @@
-python bot_com.py 000000000002 0
+python bot_com.py 2 000000000002 0
