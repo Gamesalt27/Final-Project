@@ -1,10 +1,6 @@
 import socket
-from scapy.layers.inet import IP, UDP, TCP
-from scapy.layers.http import Raw
 from Utils import *
-from Botnet_Protocol import Botnet_Packet
 import threading
-from Botnet_Protocol import Botnet_Packet
 from queue import Queue
 import time
 import random
