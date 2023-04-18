@@ -3,8 +3,10 @@ import logging
 from scapy.all import *
 
 MAX_SEND_THREADS_COUNT = 5
-logging.basicConfig(level=logging.DEBUG)
 SOCKET_TIMEOUT = 1
+DB_FILE = r'db.txt'
+logging.basicConfig(level=logging.DEBUG)
+
 
 def UDP_send(destination: socket.socket, address: tuple, msg: str):
     msg = encrypt(msg)

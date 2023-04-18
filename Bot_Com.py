@@ -1,6 +1,4 @@
 import socket
-from scapy.layers.inet import IP, UDP, TCP
-from scapy.layers.http import Raw
 from Utils import *
 import threading
 from queue import Queue
