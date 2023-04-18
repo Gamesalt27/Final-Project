@@ -2,9 +2,7 @@ import socket
 from scapy.layers.inet import IP, UDP, TCP
 from scapy.layers.http import Raw
 from Utils import *
-from Botnet_Protocol import Botnet_Packet
 import threading
-from Botnet_Protocol import Botnet_Packet
 from queue import Queue
 import time
 import random
@@ -38,17 +36,18 @@ def com_loop():                                 # TODO: add check for botnet ttl
     send_thread.start()
     if send_msg:                                                                                            # for testing
         ttl = 5
-        load = f"{ttl}$meow"
+        endpoint = sys.argv[4]
+        load = f"{ttl}${endpoint}$meow"
         send_MAC.put((sys.argv[3], load))
     while True:
         time.sleep(0.01)
         if receive_data.empty():
             continue
         load = receive_data.get(block=False)
-        data = proccess_msg(load)
+        data, dst_MAC = proccess_msg(load)
         if type(data) == int:
+            logging.info("load endpoint reached")
             continue
-        dst_MAC = random.choice(TEMP_MACs)
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
 
@@ -128,12 +127,17 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str):
             logging.debug(f"put {MAC}, {data} in send data Queue")
 
 
-def proccess_msg(msg: str):              # TODO: intilize
-    ttl, load = msg.split("$")
+def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load
+    if msg.find("$") == -1:
+        return (1, "")
+    msg = msg.split("$")
+    ttl, endpoint, load = msg
     if int(ttl) <= 0:
-        return 1
+        return (load, endpoint)
     ttl = int(ttl) - 1
-    return f"{ttl}${load}"
+    next_MAC = random.choice(TEMP_MACs)
+    return (f"{ttl}${endpoint}${load}", next_MAC)
+    
         
 
 if __name__ == "__main__":
