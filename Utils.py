@@ -35,7 +35,7 @@ def TCP_recieve(source: socket.socket):           # TODO: clear socket buffer af
     try:
         msg = source.recv(1024)
     except socket.error as e:
-        logging.debug(f"source {source.getpeername()} unavailable")
+        #logging.debug(f"source {source.getpeername()[:2]} unavailable")
         return 0
     clear_read_buffer(source)
     return decrypt(msg)
@@ -113,7 +113,5 @@ def clear_read_buffer(soc: socket.socket):
 
 
 def check_msg(msg: str, type=0):
-    if msg == "shutting down connection":
-        return False
     return isinstance(msg, str)
 

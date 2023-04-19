@@ -1,0 +1,1 @@
+python bot_com.py 1 000000000007 2 0

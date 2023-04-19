@@ -24,7 +24,7 @@ def receive_clients(server: socket.socket):
         client, adderess = server.accept()
         logging.info(f"new client connected {adderess}")    # TODO: set socket timeout and deal with the error
         msg = TCP_recieve(client)                      # TODO: parse msg (contains only MAC right now)
-        logging.debug(f"client {client.getpeername()} sent {msg}")
+        logging.debug(f"client {client.getpeername()[:2]} sent {msg}")
         notifications.update({msg: (False, "", 0)})
         connections.append(threading.Thread(target=handle_client, args=((client, msg))))
         connections[-1].start()                          # TODO: add computer to main list
@@ -44,7 +44,7 @@ def handle_client(client: socket.socket, MAC="000000000000"):
             succeeded = TCP_send(client, str(holepunch_socket.getsockname()[1]))
             holepunch_server = threading.Thread(target=holepunch_listener, args=((holepunch_socket, (MAC, msg))))
             holepunch_server.start()
-        else:
+        elif msg == "shutting down connection":
             notifications.pop(MAC)
             client.close()
             return

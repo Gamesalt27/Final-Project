@@ -6,12 +6,17 @@ import time
 import random
 import sys
 from database import database
+from endpoint import *
 
 
 receive_MAC = Queue()           # (MAC, holepunch_port)
 receive_data = Queue()          # load
 send_MAC = Queue()              # (MAC, load)
 send_data = Queue()             # (MAC, load, holepunch_port)
+endpoint_port = 80
+endpoint_IP = "188.184.21.108"
+
+
 db = database(sys.argv[1])
 
 
@@ -21,8 +26,8 @@ def main():         # for testing only
        
 def com_loop():                                 # TODO: add check for botnet ttl
     MAC = sys.argv[2]
-    send_msg = bool(int(sys.argv[3]))
-    server_MAC, server_address = choose_server(1)
+    send_msg = bool(int(sys.argv[4]))
+    server_MAC, server_address = choose_server(int(sys.argv[3]))
     server = threading.Thread(target=server_listener, args=((socket.socket(socket.AF_INET6, socket.SOCK_STREAM), server_address, MAC, server_MAC)))
     server.start()
     receive_thread = threading.Thread(target=receive_from_node, args=(server_address[0], MAC))
@@ -30,11 +35,11 @@ def com_loop():                                 # TODO: add check for botnet ttl
     send_thread = threading.Thread(target=send_to_node, args=(server_address[0], MAC))
     send_thread.start()
     if send_msg:                                                                                            # for testing
-        ttl = 5
-        endpoint = sys.argv[5]
-        load = f"{ttl}${endpoint}$meow"
-        send_MAC.put((sys.argv[4], load))
-        logging.debug(f"added {load}, {sys.argv[4]} to send_MAC queue")
+        ttl = 2
+        endpoint = sys.argv[6]
+        load = f"{ttl}${endpoint}${endpoint_IP}#{endpoint_port}#{get_http()}"
+        send_MAC.put((sys.argv[5], load))
+        logging.debug(f"added {load}, {sys.argv[5]} to send_MAC queue")
     while True:
         time.sleep(0.01)
         if receive_data.empty():
@@ -43,12 +48,13 @@ def com_loop():                                 # TODO: add check for botnet ttl
         data, dst_MAC = proccess_msg(load)
         if type(data) == int:
             logging.info("load endpoint reached")
+            com_with_destination(load)
             continue
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
-        s_MAC = db.retrive_client(MAC)[1]
+        s_MAC = db.retrive_client(dst_MAC)[1]
         if s_MAC != server_MAC:
-            server_MAC, server_address = db.retrive_server(MAC)
+            server_MAC, server_address = db.retrive_server(dst_MAC)
             server = threading.Thread(target=server_listener, args=((socket.socket(socket.AF_INET6, socket.SOCK_STREAM), server_address, MAC, server_MAC)))
             server.start()
 
@@ -104,15 +110,14 @@ def receive_from_node(server_IP: str, dst_MAC: str):
 
 def server_listener(server: socket.socket, server_address: tuple, MAC: str, server_MAC: str):
     try:
+        server.settimeout(SOCKET_TIMEOUT)
         server.connect(server_address)
         logging.info(f"connected to {server.getpeername()[:2]}, from {server.getsockname()[:2]}")
         succeeded = TCP_send(server, MAC)
     except socket.error as e:
         logging.debug(f"server {server_address} unavaliable")
         return
-    server.settimeout(2)
     while True:
-        logging.debug("entered loop")
         time.sleep(0.01)
         msg = TCP_recieve(server)
         if check_msg(msg):
@@ -121,7 +126,6 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str, serv
             receive_MAC.put((src_MAC, int(holepunch_port)))
             logging.debug(f"TCP received {msg} from {server.getpeername()[:2]}")
         if send_MAC.empty():
-            logging.debug(f"send_MAC is empty {send_MAC}")
             continue
         MAC, data = send_MAC.get(block=False)
         logging.debug(f"retrived {MAC}, {data} from send MAC Queue")
@@ -149,6 +153,7 @@ def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load,
         if int(ttl) <= 0:
             return (load, endpoint)
         ttl = int(ttl) - 1
+        flag = False
         payload = f"{ttl}${endpoint}${load}"
     elif len(msg) == 2:
         flag, load = msg
@@ -160,7 +165,7 @@ def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load,
 def choose_next_node(is_ret=False):
     if is_ret:
         MAC = db.next_ret()
-        db.reset_ret()
+        db.reset_ret(MAC)
         return MAC
     MACs = db.retrive_MACs(2)           
     MAC = random.choice(MACs)
@@ -170,9 +175,16 @@ def choose_next_node(is_ret=False):
 def choose_server(type=0):            # TODO: implement different states
     if type == 1:
         return db.retrive_server("100000000000")
+    if type == 2:
+        return db.retrive_server("200000000000")
     MACs = db.retrive_MACs(1)           
     MAC = random.choice(MACs)
     return db.retrive_server(MAC)       # return MAC and address
+
+
+def get_http():
+    with open("http_request.txt", "r") as file:
+        return file.read()
 
 
 if __name__ == "__main__":

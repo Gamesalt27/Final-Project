@@ -23,7 +23,6 @@ class database():           # handle for json db
             file.close()
         except OSError as e:
             logging.critical("unable to create DB file")
-        self.reset_ret()
             
 
     def add_client_entry(self, MAC: str, server: str, country: str, ret_flag=0):
@@ -35,6 +34,7 @@ class database():           # handle for json db
             try:
                 with open(self.current_db, 'a') as file:
                     json.dump(data, file)
+                    file.write("\n")
             except OSError as e:
                 logging.error(f"unable to write {data} to db")
                 return False
@@ -49,6 +49,7 @@ class database():           # handle for json db
             try:
                 with open(self.current_db, 'a') as file:
                     json.dump(data, file)
+                    file.write("\n")
             except OSError as e:
                 logging.error(f"unable to write {data} to db")
 
@@ -102,21 +103,10 @@ class database():           # handle for json db
                 logging.error(f"unable to read from db")
 
 
-    def reset_ret(self):
-        with self.lock:
-            try:
-                with open(self.current_db, "r") as input:
-                    with open(self.current_temp, "w") as output:
-                        for line in input:
-                            if json.loads(line.strip("\n"))['type'] == 1 or json.loads(line.strip("\n"))['ret_flag'] == 0:
-                                output.write(line)
-                            else:
-                                data = json.loads(line.strip("\n"))
-                                data['ret_flag'] = 0
-                                json.dump(data, output)
-                os.replace(self.current_temp, self.current_db)
-            except OSError or ValueError as e:
-                pass
+    def reset_ret(self, MAC: str):
+        data = self.retrive_client(MAC)
+        self.remove_entry(MAC)
+        self.add_client_entry(MAC, data[1], data[2])
     
 
     def count_entries(self):
@@ -142,17 +132,19 @@ class database():           # handle for json db
 
     def set_ret(self, MAC: str):
         with self.lock:
-            with open(self.current_db, "r+") as file:
-                    file.seek(0)
-                    for line in file.readlines():
-                        if json.loads(line)['MAC'] == MAC and json.loads(line)['type'] == 2:
-                            entry = json.loads(line)
-                            entry['ret_flag'] = 1
-                            file.write(json.dumps(entry))
-                            logging.debug(f"set {MAC} return flag")
-                        else:
-                            file.write(line)
-                    file.truncate()
+            try:
+                with open(self.current_db, "r") as input:
+                    with open(self.current_temp, "w") as output:
+                        for line in input:
+                            if json.loads(line.strip("\n"))['MAC'] != MAC:
+                                output.write(line)
+                            else:
+                                data = json.loads(line)
+                                data['ret_flag'] = 1
+                                json.dump(data, output)
+                                output.write("\n")
+            except ValueError or OSError as e: pass
+            os.replace(self.current_temp, self.current_db)
 
 
     def entry_exists(self, MAC: str):
@@ -162,6 +154,6 @@ class database():           # handle for json db
                     file.seek(0)
                     for line in file.readlines():
                         if json.loads(line)["MAC"] == MAC: return True
-            except OSError as e:
+            except ValueError or OSError as e:
                 logging.error(f"unable to read from db")
         return False
