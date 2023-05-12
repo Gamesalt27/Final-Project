@@ -95,14 +95,6 @@ def set_keepalive(sock: socket.socket, after_idle_sec=60, interval_sec=60, max_f
     sock.settimeout(timeout)
 
 
-def get_updates():      # TODO: define the function
-    pass
-
-
-def receive_botnet_packet(src_address: tuple, dst_address: tuple):
-    response = sniff(filter=f"dst host {dst_address[0]} and src host {src_address[0]} and udp dst port {dst_address[1]} and udp src port {src_address[1]}", count=1)
-    return response[0].load.decode()
-
 def clear_read_buffer(soc: socket.socket):
     soc.settimeout(0)
     try:
