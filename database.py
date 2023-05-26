@@ -70,7 +70,6 @@ class database():           # handle for json db
                 with open(self.current_db, 'r') as file:
                     file.seek(0)
                     for line in file.readlines():
-                        print(line)
                         data = json.loads(line)
                         if data['MAC'] == MAC:
                             val = (data['MAC'], (data['IP'], data['port']))
@@ -85,11 +84,13 @@ class database():           # handle for json db
                 with open(self.current_db, 'r') as file:
                     file.seek(0)
                     for line in file.readlines():
+                        print(line)
                         data = json.loads(line)
                         if data['MAC'] == MAC:
-                            return (data['MAC'], data['server'], data['country'], data['ret_flag'])
+                            val = (data['MAC'], data['server'], data['country'], data['ret_flag'])
             except OSError as e:
                 logging.error(f"unable to retrive {MAC} from db")
+        return val
 
 
     def next_ret(self):
@@ -98,9 +99,13 @@ class database():           # handle for json db
                 with open(self.current_db, 'r') as file:
                     file.seek(0)
                     for line in file.readlines():
+                        logging.debug(line)
                         data = json.loads(line)
-                        if data['type'] == '2':
+                        logging.debug(f'{data["type"]} is of type: {type(data["type"])}')
+                        if data['type'] == 2:
+                            logging.debug(f'{data["MAC"]}is client')
                             if data['ret_flag'] == 1:
+                                logging.debug(f'{data["MAC"]} has ret flag set')
                                 return data['MAC']
             except OSError as e:
                 logging.error(f"unable to read from db")
@@ -128,6 +133,9 @@ class database():           # handle for json db
             try:
                 with open(self.current_db, 'r') as file:
                     file.seek(0)
+                    if type == 2:
+                        MACs = [json.loads(line)['MAC'] for line in file.readlines() if json.loads(line)['type'] == type and json.loads(line)['ret_flag'] == 0]
+                        return MACs
                     MACs = [json.loads(line)['MAC'] for line in file.readlines() if json.loads(line)['type'] == type]
                     return MACs    
             except OSError as e:
@@ -162,3 +170,17 @@ class database():           # handle for json db
             except ValueError or OSError as e:
                 logging.error(f"unable to read from db")
         return False
+
+
+def main():
+    DB = database(1)
+    MAC = f"00000000000{input('input mac: ')}"
+    #DB.set_ret(MAC)
+    print(DB.retrive_client(MAC))
+    print(DB.next_ret())
+    DB.reset_ret(MAC)
+
+
+if __name__ == "__main__":
+    main()
+

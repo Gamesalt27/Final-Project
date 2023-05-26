@@ -49,11 +49,13 @@ def com_loop():                                 # TODO: add check for botnet ttl
         if dst_MAC == 'no_rets':
             write_to_file(data)
             logging.info('response recived')
+            continue
         if type(data) == int:
             logging.info("load endpoint reached")
             data = com_with_destination(load)
             ret_msg = f'1${data}'
             receive_data.put(ret_msg)
+            logging.debug(f"returning response {ret_msg}")
             continue
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
@@ -109,8 +111,11 @@ def receive_from_node(server_IP: str, dst_MAC: str):
                 continue
             msg = UDP_recieve(client, (IP, port))
             if check_msg(msg):
-                receive_data.put(msg) 
-                db.set_ret(src_MAC)
+                receive_data.put(msg)
+                print(type(msg))
+                print(len(msg.split('$')) != 2)
+                if len(msg.split('$')) != 2:
+                    db.set_ret(src_MAC)
 
 
 def server_listener(server: socket.socket, server_address: tuple, MAC: str, server_MAC: str):
@@ -132,21 +137,22 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str, serv
             logging.debug(f"TCP received {msg} from {server.getpeername()[:2]}")
         if send_MAC.empty():
             continue
-        MAC, data = send_MAC.get(block=False)
-        logging.debug(f"retrived {MAC}, {data} from send MAC Queue")
-        s_MAC = db.retrive_client(MAC)[1]
+        dst_MAC, data = send_MAC.get(block=False)
+        logging.debug(f"retrived {dst_MAC}, {data} from send MAC Queue")
+        s_MAC = db.retrive_client(dst_MAC)
+        s_MAC = s_MAC[1]
         if s_MAC != server_MAC:
             logging.info(f"switching from server {server_MAC} to server {s_MAC}")
             succeeded = TCP_send(server, "shutting down connection")
-            send_MAC.put(MAC, data)
+            send_MAC.put(dst_MAC, data)
             server.close()
             return
-        succeeded = TCP_send(server, MAC)
+        succeeded = TCP_send(server, dst_MAC)
         msg = TCP_recieve(server)                       # msg - holepunch port TODO: deal with race condition with server sending wrong data
         if check_msg(msg):
             logging.debug(f"TCP received {msg} from {server.getpeername()[:2]}")
-            send_data.put((MAC, data, int(msg)))
-            logging.debug(f"put {MAC}, {data} in send data Queue")
+            send_data.put((dst_MAC, data, int(msg)))
+            logging.debug(f"put {dst_MAC}, {data} in send data Queue")
 
 
 def proccess_msg(msg: str, MAC: str):              # msg formats: ttl$endpoint$load, load, flag$load
@@ -175,7 +181,8 @@ def choose_next_node(is_ret=False):
         if MAC == 'no_rets': return MAC
         db.reset_ret(MAC)
         return MAC
-    MACs = db.retrive_MACs(2)           
+    MACs = db.retrive_MACs(2)
+               
     MAC = random.choice(MACs)
     return db.retrive_client(MAC)[0]       # return MAC and server
  
