@@ -12,7 +12,7 @@ def com_with_destination(load: str):
     soc.connect((IP, int(port)))
     soc.sendall(load.encode())
     data = soc.recv(1024).decode()
-    write_to_file(data)
+    return data
 
 
 def write_to_file(data: str):

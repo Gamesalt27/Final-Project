@@ -70,11 +70,13 @@ class database():           # handle for json db
                 with open(self.current_db, 'r') as file:
                     file.seek(0)
                     for line in file.readlines():
+                        print(line)
                         data = json.loads(line)
                         if data['MAC'] == MAC:
-                            return (data['MAC'], (data['IP'], data['port']))
+                            val = (data['MAC'], (data['IP'], data['port']))
             except OSError as e:
                 logging.error(f"unable to retrive {MAC} from db")
+        return val
 
 
     def retrive_client(self, MAC: str):
@@ -97,10 +99,12 @@ class database():           # handle for json db
                     file.seek(0)
                     for line in file.readlines():
                         data = json.loads(line)
-                        if data['ret_flag'] == 1:
-                            return data['MAC']
+                        if data['type'] == '2':
+                            if data['ret_flag'] == 1:
+                                return data['MAC']
             except OSError as e:
                 logging.error(f"unable to read from db")
+        return 'no_rets'
 
 
     def reset_ret(self, MAC: str):
@@ -143,6 +147,7 @@ class database():           # handle for json db
                                 data['ret_flag'] = 1
                                 json.dump(data, output)
                                 output.write("\n")
+                                logging.debug(f"set ret flag for: {data['MAC']}")
             except ValueError or OSError as e: pass
             os.replace(self.current_temp, self.current_db)
 
