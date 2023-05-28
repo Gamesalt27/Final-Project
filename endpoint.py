@@ -22,15 +22,17 @@ def com_with_destination(load: str):
     soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         soc.connect((IP, int(port)))
-        soc.sendall(load.encode())
-        data = soc.recv(1024).decode()
+        logging.debug(f'{soc.getsockname()} sent to server: {data}')
+        soc.sendall(data.encode())
+        data = soc.recv(4096)
+        print(data)
     except socket.error as e:
         return SERVER_ERROR
-    return data
+    return data.decode()
 
 
 def write_to_file(data: str):
-    page = data[data.find("<!DOCTYPE HTML"):]
+    page = data[data.find('\r\n\r\n')+4:]
     with open("website.html", "a+") as file:
         file.write(page)
 

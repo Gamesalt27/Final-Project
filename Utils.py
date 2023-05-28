@@ -19,7 +19,7 @@ def UDP_send(destination: socket.socket, address: tuple, msg: str):
 
 def UDP_recieve(source: socket.socket, address=("", 0)):           # TODO: clear socket buffer after read
     try:
-        msg, addr = source.recvfrom(1024)
+        msg, addr = source.recvfrom(4096)
     except socket.error as e:
         #logging.debug(f"source {address} unavailable")
         return 0
@@ -33,7 +33,7 @@ def UDP_recieve(source: socket.socket, address=("", 0)):           # TODO: clear
 
 def TCP_recieve(source: socket.socket):           # TODO: clear socket buffer after read
     try:
-        msg = source.recv(1024)
+        msg = source.recv(4096)
     except socket.error as e:
         #logging.debug(f"source {source.getpeername()[:2]} unavailable")
         return 0

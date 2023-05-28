@@ -14,7 +14,7 @@ receive_data = Queue()          # load
 send_MAC = Queue()              # (MAC, load)
 send_data = Queue()             # (MAC, load, holepunch_port)
 endpoint_port = 80
-endpoint_IP = "188.184.21.108"
+endpoint_IP = "134.173.42.59"
 
 
 db = database(sys.argv[1])
